@@ -125,7 +125,7 @@ let rec gen_stmt frame s = match s.expr_desc with
         let offset = frame.stack_offset in
         Hashtbl.add frame.locals v.v_id offset;
         frame.stack_offset <- offset - 8;
-        code
+        code ++ subq (imm 8) (reg rsp)
       ) nop vars
   | TEif (cond, then_, else_) ->
       failwith "If Not Implemented";
