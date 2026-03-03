@@ -46,7 +46,7 @@ let new_frame () = {
 
 (* NOTE: expression generation *)
 
-let rec expr frame e = match e.expr_desc with
+let rec gen_expr frame e = match e.expr_desc with
   | TEconstant c ->
       begin match c with
       | Cbool b ->
@@ -57,16 +57,31 @@ let rec expr frame e = match e.expr_desc with
           let lbl = get_string_label s in
           leaq (lab lbl) rax
       end
-  | TEprint el ->
-      print_exprs frame el
+  | TEbinop (op, expr1, expr2) ->
+      gen_expr frame expr1 ++
+      pushq (reg rax) ++
+      gen_expr frame expr2 ++
+      movq (reg rax) (reg rcx) ++
+      popq rax ++
+      (
+        match op with
+        | Badd -> addq (reg rcx) (reg rax)
+        | Bsub -> subq (reg rcx) (reg rax)
+        | Bmul -> imulq (reg rcx) (reg rax)
+        | Bdiv -> cqto ++ idivq (reg rcx)
+        | _ ->
+            failwith "Bop Not Implemented";
+      )
+  | TEprint exprs ->
+      gen_print frame exprs
   | _ ->
       nop (* TODO: continue implementation *)
 
-and print_exprs frame el =
+and gen_print frame el =
   List.fold_left (fun code e ->
     (* Evaluate expression to %rax *)
     code ++
-    expr frame e ++
+    gen_expr frame e ++
     (* move to %rsi (2nd arg) *)
     movq (reg rax) (reg rsi) ++
     (* Get format string - for now assume int *)
@@ -84,7 +99,7 @@ let rec stmt frame s = match s.expr_desc with
   | TEblock bl ->
       List.fold_left (fun code s -> code ++ stmt frame s) nop bl
   | TEprint el ->
-      print_exprs frame el
+      gen_print frame el
   | _ -> nop (* TODO: continue implementation *)
 
 (* NOTE: function generation *)

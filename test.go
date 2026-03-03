@@ -1,5 +1,5 @@
 package main
 import "fmt"
 func main() {
-    fmt.Print(42)
+    fmt.Print(41 + 1)
 }
