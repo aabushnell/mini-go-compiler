@@ -72,16 +72,41 @@ let rec gen_expr frame e = match e.expr_desc with
         | _ ->
             failwith "Bop Not Implemented";
       )
+  | TEident var ->
+      let offset =
+        try Hashtbl.find frame.locals var.v_id
+        with Not_found ->
+          try Hashtbl.find frame.params var.v_id
+          with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
+      in
+      movq (ind ~ofs:offset rbp) (reg rax)
+  | TEassign (lhs_exprs, rhs_exprs) ->
+      gen_expr frame (List.hd rhs_exprs) ++
+      pushq (reg rax) ++
+      (
+        match (List.hd lhs_exprs).expr_desc with
+        | TEident var ->
+            popq rax ++
+            let offset =
+              try Hashtbl.find frame.locals var.v_id
+              with Not_found -> 
+                try Hashtbl.find frame.params var.v_id
+                with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
+            in
+            movq (reg rax) (ind ~ofs:offset rbp)
+        | _ ->
+            failwith "Complex lvalues Not Implemented";
+      )
   | TEprint exprs ->
       gen_print frame exprs
   | _ ->
       nop (* TODO: continue implementation *)
 
-and gen_print frame el =
-  List.fold_left (fun code e ->
+and gen_print frame exprs =
+  List.fold_left (fun code expr ->
     (* Evaluate expression to %rax *)
     code ++
-    gen_expr frame e ++
+    gen_expr frame expr ++
     (* move to %rsi (2nd arg) *)
     movq (reg rax) (reg rsi) ++
     (* Get format string - for now assume int *)
@@ -91,19 +116,26 @@ and gen_print frame el =
     xorq (reg rax) (reg rax) ++
     call "printf_" ++
     addq (imm 16) (reg rsp)      (* clean up stack *)
-  ) nop el
+  ) nop exprs
 
 (* NOTE: statement generation *)
 
 let rec gen_stmt frame s = match s.expr_desc with
   | TEvars vars ->
-      failwith "Vars Not Implemented";
+      List.fold_left (fun code v ->
+        let offset = frame.stack_offset in
+        Hashtbl.add frame.locals v.v_id offset;
+        frame.stack_offset <- offset - 8;
+        code
+      ) nop vars
   | TEif (cond, then_, else_) ->
       failwith "If Not Implemented";
   | TEreturn exprs ->
       failwith "Return Not Implemented";
-  | TEblock bl ->
-      List.fold_left (fun code s -> code ++ gen_stmt frame s) nop bl
+  | TEblock exprs ->
+      List.fold_left (fun code s ->
+        code ++ gen_stmt frame s
+      ) nop exprs
   | TEfor (cond, body) ->
       failwith "For Not Implemented";
   | _ ->
