@@ -72,6 +72,17 @@ let rec gen_expr frame e = match e.expr_desc with
         | _ ->
             failwith "Bop Not Implemented";
       )
+  | TEcall (fn, args) ->
+      let push_args = 
+        List.fold_right (fun arg code ->
+          gen_expr frame arg ++
+          pushq (reg rax) ++
+          code
+        ) args nop
+      in
+      push_args ++
+      call fn.fn_name ++
+      addq (imm (8 * List.length args)) (reg rsp)
   | TEident var ->
       let offset =
         try Hashtbl.find frame.locals var.v_id
@@ -114,15 +125,11 @@ and gen_laddr frame lexpr =
 
 and gen_print frame exprs =
   List.fold_left (fun code expr ->
-    (* Evaluate expression to %rax *)
     code ++
     gen_expr frame expr ++
-    (* move to %rsi (2nd arg) *)
     movq (reg rax) (reg rsi) ++
-    (* Get format string - for now assume int *)
     let fmt_lbl = get_string_label "%d\n" in
     leaq (lab fmt_lbl) rdi ++
-    (* clear %rax for variadic function *)
     xorq (reg rax) (reg rax) ++
     call "printf_"
   ) nop exprs
@@ -140,7 +147,19 @@ let rec gen_stmt frame s = match s.expr_desc with
   | TEif (cond, then_, else_) ->
       failwith "If Not Implemented";
   | TEreturn exprs ->
-      failwith "Return Not Implemented";
+      begin match exprs with
+      | [] ->
+          movq (reg rbp) (reg rsp) ++
+          popq rbp ++
+          ret
+      | [expr] ->
+          gen_expr frame expr ++
+          movq (reg rbp) (reg rsp) ++
+          popq rbp ++
+          ret
+      | _ ->
+          failwith "Multiple Returns Not Supported";
+      end
   | TEblock exprs ->
       List.fold_left (fun code s ->
         code ++ gen_stmt frame s
@@ -153,22 +172,20 @@ let rec gen_stmt frame s = match s.expr_desc with
 (* NOTE: function generation *)
 
 let function_ asm_name (f, body) =
-  (* Build frame with parameters *)
   let frame = new_frame () in
-  (* Parameters start at 16(%rbp): return addr + saved %rbp *)
+
   let param_offset = ref 16 in
   List.iter (fun v ->
     Hashtbl.add frame.params v.v_id !param_offset;
     param_offset := !param_offset + 8
   ) f.fn_params;
 
-  (* Generate function code *)
   label asm_name ++
   pushq (reg rbp) ++
   movq (reg rsp) (reg rbp) ++
-  (* Body *)
+
   gen_stmt frame body ++
-  (* Return default 0 if no explicit return *)
+
   xorq (reg rax) (reg rax) ++
   movq (reg rbp) (reg rsp) ++
   popq rbp ++
