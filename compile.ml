@@ -72,6 +72,22 @@ let rec gen_expr frame e = match e.expr_desc with
         | _ ->
             failwith "Bop Not Implemented";
       )
+  | TEunop (op, expr) ->
+      begin match op with
+      | Uneg ->
+          gen_expr frame expr ++
+          negq (reg rax)
+      | Unot ->
+          gen_expr frame expr ++
+          testq (reg rax) (reg rax) ++
+          setz (reg al) ++
+          movzbq (reg al) rax
+      | Uamp ->
+          gen_laddr frame expr
+      | Ustar ->
+          gen_expr frame expr ++
+          movq (ind rax) (reg rax)
+      end
   | TEcall (fn, args) ->
       let push_args = 
         List.fold_right (fun arg code ->
@@ -119,7 +135,7 @@ and gen_laddr frame lexpr =
   | TEdot (expr, ofield) ->
       failwith "Field assignment not implemented"
   | TEunop (Ustar, expr) ->
-      failwith "Pointer dereference assignment not implemented"
+      gen_expr frame expr
   | _ ->
       failwith "Invalid lvalue in assignment"
 
