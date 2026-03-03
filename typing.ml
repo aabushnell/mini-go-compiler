@@ -35,6 +35,7 @@ type func_env = {
   genv     : env;
   scope    : (string, var) Hashtbl.t;
   local    : (string, unit) Hashtbl.t;
+  params   : (string, unit) Hashtbl.t;
   rtypes   : typ list;
   printed  : bool ref;
 }
@@ -179,7 +180,7 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
               errorm ~loc:e.pexpr_loc "Can only take address of an l-value";
             begin match res.texpr.expr_desc with
             | TEident v ->
-                if not (Hashtbl.mem fenv.local v.v_name) then
+                if Hashtbl.mem fenv.params v.v_name then
                   v.v_addr <- true
             | _ -> ()
             end;
@@ -685,17 +686,20 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
       | PDfunction pf ->
           let fn = Hashtbl.find genv.funcs pf.pf_name.id in
 
-          let scope = Hashtbl.create Config.table_sizes.locals in
-          let local = Hashtbl.create Config.table_sizes.locals in
+          let scope  = Hashtbl.create Config.table_sizes.locals in
+          let local  = Hashtbl.create Config.table_sizes.locals in
+          let params = Hashtbl.create Config.table_sizes.locals in
           List.iter (fun v ->
             Hashtbl.add scope v.v_name v;
-            Hashtbl.add local v.v_name ()
+            Hashtbl.add local v.v_name ();
+            Hashtbl.add params v.v_name ()
           ) fn.fn_params;
 
           let fenv = {
             genv    = genv;
             scope   = scope;
             local   = local;
+            params  = params;
             rtypes  = fn.fn_typ;
             printed = printed;
           } in
