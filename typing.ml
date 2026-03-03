@@ -178,7 +178,9 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
             if not res.lvalue then
               errorm ~loc:e.pexpr_loc "Can only take address of an l-value";
             begin match res.texpr.expr_desc with
-            | TEident v -> v.v_addr <- true
+            | TEident v ->
+                if not (Hashtbl.mem fenv.local v.v_name) then
+                  v.v_addr <- true
             | _ -> ()
             end;
             (Tptr typ, false)
