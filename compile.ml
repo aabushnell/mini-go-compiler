@@ -173,10 +173,20 @@ and gen_laddr frame lexpr =
 
 and gen_print frame exprs =
   List.fold_left (fun code expr ->
+    let fmt_str =
+      match expr.expr_typ with
+      | Tint      -> "%d"
+      | Tbool     -> "%d"
+      | Tstring   -> "%s"
+      | Tptr _    -> "%p"
+      | Tstruct _ -> "%p"
+      | _         -> "%d"
+    in
+
     code ++
     gen_expr frame expr ++
     movq (reg rax) (reg rsi) ++
-    let fmt_lbl = get_string_label "%d\n" in
+    let fmt_lbl = get_string_label fmt_str in
     leaq (lab fmt_lbl) rdi ++
     xorq (reg rax) (reg rax) ++
     call "printf_"
