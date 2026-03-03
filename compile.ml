@@ -117,6 +117,8 @@ let rec gen_expr frame e = match e.expr_desc with
       in
       movq (ind ~ofs:offset rbp) (reg rax)
   | TEdot (expr, field) ->
+      Printf.eprintf "DEBUG: Accessing field %s with offset %d\n" 
+        field.f_name field.f_ofs;
       gen_expr frame expr ++
       addq (imm field.f_ofs) (reg rax) ++
       movq (ind rax) (reg rax)
