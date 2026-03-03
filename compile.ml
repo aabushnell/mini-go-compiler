@@ -85,7 +85,7 @@ let rec stmt frame s = match s.expr_desc with
 
 (* NOTE: function generation *)
 
-let function_ (f, body) =
+let function_ asm_name (f, body) =
   (* Build frame with parameters *)
   let frame = new_frame () in
   (* Parameters start at 16(%rbp): return addr + saved %rbp *)
@@ -94,9 +94,9 @@ let function_ (f, body) =
     Hashtbl.add frame.params v.v_id !param_offset;
     param_offset := !param_offset + 8
   ) f.fn_params;
-  
+
   (* Generate function code *)
-  label f.fn_name ++
+  label asm_name ++
   pushq (reg rbp) ++
   movq (reg rsp) (reg rbp) ++
   (* Body *)
@@ -119,13 +119,16 @@ let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
 
   let text_code = 
     List.fold_left (fun code d -> match d with
-      | TDfunction (f, e) -> code ++ function_ (f, e)
+      | TDfunction (f, e) ->
+          let asm_name = if f.fn_name = "main" then "main_go" else f.fn_name in
+          code ++ function_ asm_name (f, e)
       | TDstruct _ -> code  (* nothing to generate for structs *)
     ) nop dl
   in
 
   let go_main = match find_main dl with
-    | Some (TDfunction (f, _)) -> f.fn_name
+    | Some (TDfunction (f, _)) -> 
+        if f.fn_name = "main" then "main_go" else f.fn_name
     | _ -> "main_missing"
   in
 
@@ -137,8 +140,8 @@ let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
       ret ++
       text_code ++
       inline "
-# TODO some auxiliary assembly functions, if needed
-"
+      # TODO some auxiliary assembly functions, if needed
+      "
   ++ aligned_call_wrapper ~f:"malloc" ~newf:"malloc_"
   ++ aligned_call_wrapper ~f:"calloc" ~newf:"calloc_"
   ++ aligned_call_wrapper ~f:"printf" ~newf:"printf_"
