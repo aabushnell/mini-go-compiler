@@ -114,8 +114,7 @@ and gen_print frame exprs =
     leaq (lab fmt_lbl) rdi ++
     (* clear %rax for variadic function *)
     xorq (reg rax) (reg rax) ++
-    call "printf_" ++
-    addq (imm 16) (reg rsp)      (* clean up stack *)
+    call "printf_"
   ) nop exprs
 
 (* NOTE: statement generation *)
