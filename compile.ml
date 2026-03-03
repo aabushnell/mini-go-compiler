@@ -192,8 +192,24 @@ and gen_laddr frame lexpr =
       failwith "Invalid lvalue in assignment"
 
 and gen_print frame exprs =
-  List.fold_left (fun code expr ->
-    match expr.expr_typ with
+  let space_lbl = get_string_label " " in
+  let fmt_s_lbl = get_string_label "%s" in
+
+  let (code, _) = List.fold_left (fun (code, prev_was_string) expr ->
+    let is_string = match expr.expr_typ with | Tstring -> true | _ -> false in
+    
+    let code = 
+      if not prev_was_string && not is_string then
+        code ++
+        leaq (lab space_lbl) rsi ++
+        leaq (lab fmt_s_lbl) rdi ++
+        xorq (reg rax) (reg rax) ++
+        call "printf_"
+      else
+        code
+    in
+    
+    let code = match expr.expr_typ with
     | Tint ->
         let fmt_lbl = get_string_label "%ld" in
         code ++
@@ -205,7 +221,6 @@ and gen_print frame exprs =
     | Tbool ->
         let true_lbl = get_string_label "true" in
         let false_lbl = get_string_label "false" in
-        let fmt_lbl = get_string_label "%s" in
         let l_false = new_label () in
         let l_done = new_label () in
         code ++
@@ -217,21 +232,19 @@ and gen_print frame exprs =
         label l_false ++
         leaq (lab false_lbl) rsi ++
         label l_done ++
-        leaq (lab fmt_lbl) rdi ++
+        leaq (lab fmt_s_lbl) rdi ++
         xorq (reg rax) (reg rax) ++
         call "printf_"
     | Tstring ->
-        let fmt_lbl = get_string_label "%s" in
         code ++
         gen_expr frame expr ++
         movq (reg rax) (reg rsi) ++
-        leaq (lab fmt_lbl) rdi ++
+        leaq (lab fmt_s_lbl) rdi ++
         xorq (reg rax) (reg rax) ++
         call "printf_"
-    | Tptr _ | Tstruct _ ->
+    | Tptr _ | Tnil | Tstruct _ ->
         let nil_lbl = get_string_label "<nil>" in
         let fmt_p_lbl = get_string_label "%p" in
-        let fmt_s_lbl = get_string_label "%s" in
         let l_nil = new_label () in
         let l_done = new_label () in
         code ++
@@ -251,7 +264,11 @@ and gen_print frame exprs =
         label l_done
     | _ ->
         code
-  ) nop exprs
+    in
+    (code, is_string)
+  ) (nop, true) exprs  (* Start with true = no space before first arg *)
+  in
+  code
 
 (* NOTE: statement generation *)
 
