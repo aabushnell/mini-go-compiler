@@ -111,19 +111,6 @@ let check_rec_struct loc (start : structure) : unit =
 
 let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
   let loc = e.pexpr_loc in
-  if !debug then
-    let line = (fst e.pexpr_loc).Lexing.pos_lnum in
-    begin match e.pexpr_desc with
-    | PEblock _ -> Printf.eprintf "  [form_expr] block at %d\n%!" line
-    | PEvars _  -> Printf.eprintf "  [form_expr] vars at %d\n%!" line
-    | PEassign _ -> Printf.eprintf "  [form_expr] assign at %d\n%!" line
-    | PEcall (id, _) -> Printf.eprintf "  [form_expr] call %s at %d\n%!"
-                           id.id line
-    | PEident id -> Printf.eprintf "  [form_expr] ident %s at %d\n%!"
-                           id.id line
-    | _ -> ()
-    end;
-  ;
   match e.pexpr_desc with
   | PEskip ->
       let texpr = { expr_desc = TEskip; expr_typ = Tmany [] } in
@@ -351,8 +338,6 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
       if n_lhs <> n_rhs then
         errorm ~loc "Number of variables does not match number of assigned values";
       List.iter2 (fun ltyp rtyp ->
-        if !debug then
-          Printf.eprintf "    [PEassign] comparing types\n%!";
         if not (equal_typ ltyp rtyp) then
           errorm ~loc "Type mismatch in assignment"
       ) lhs_typs rhs_typs;
@@ -553,15 +538,12 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
 let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
   debug := b;
 
-  if !debug then Printf.eprintf "Starting type checking!\n";
-
   let genv : env = {
     structs = Hashtbl.create Config.table_sizes.structs;
     funcs   = Hashtbl.create Config.table_sizes.funcs;
   } in
 
   (* step 1 *)
-  if !debug then Printf.eprintf "Step 1: Adding structs...\n%!";
   List.iter (fun decl ->
     match decl with
     | PDstruct ps ->
@@ -579,10 +561,8 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
         Hashtbl.add genv.structs ps.ps_name.id s
     | PDfunction _ -> ()
   ) dl;
-  if !debug then Printf.eprintf "Step 1 done\n%!";
 
   (* step 2a *)
-  if !debug then Printf.eprintf "Step 2a: Adding functions...\n%!";
   List.iter (fun decl ->
     match decl with
     | PDstruct _ -> ()
@@ -619,10 +599,8 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
         } in
         Hashtbl.add genv.funcs pf.pf_name.id fn
   ) dl;
-  if !debug then Printf.eprintf "Step 2a done\n%!";
 
   (* check for properly formed main function *)
-
   let main_found = ref false in
     List.iter (fun decl ->
       match decl with
@@ -639,8 +617,6 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
     errorm "Missing main function";
 
   (* step 2b *)
-
-  if !debug then Printf.eprintf "Step 2b: Adding struct fields...\n%!";
   List.iter (fun decl ->
     match decl with
     | PDstruct ps ->
@@ -680,10 +656,8 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
         s.s_size <- size
     | PDfunction _ -> ()
   ) dl;
-  if !debug then Printf.eprintf "Step 2b done\n%!";
 
   (* check for recursive structure definition *)
-  if !debug then Printf.eprintf "Checking recursive structs...\n%!";
   List.iter (fun decl ->
     match decl with
     | PDstruct ps ->
@@ -691,22 +665,18 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
         check_rec_struct ps.ps_name.loc s
     | PDfunction _ -> ()
   ) dl;
-  if !debug then Printf.eprintf "Recursive check done\n%!";
 
   (* step 3a *)
 
-  if !debug then Printf.eprintf "Step 3a: Type checking function bodies...\n%!";
   let printed = ref false in
 
   let tdecls =
     List.map (fun decl ->
       match decl with
       | PDstruct ps ->
-          if !debug then Printf.eprintf "  Processing struct %s\n%!" ps.ps_name.id;
           let s = Hashtbl.find genv.structs ps.ps_name.id in
           TDstruct s
       | PDfunction pf ->
-          if !debug then Printf.eprintf "  Processing function %s\n%!" pf.pf_name.id;
           let fn = Hashtbl.find genv.funcs pf.pf_name.id in
 
           let scope = Hashtbl.create Config.table_sizes.locals in
@@ -734,7 +704,6 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
           TDfunction (fn, body)
     ) dl
   in
-  if !debug then Printf.eprintf "Step 3a done\n%!";
 
   if !printed && not imp then
     errorm "fmt.Print used but import \"fmt\" not found";
