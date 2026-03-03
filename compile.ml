@@ -193,7 +193,16 @@ and gen_stmt frame s = match s.expr_desc with
         code ++ subq (imm 8) (reg rsp)
       ) nop vars
   | TEif (cond, then_, else_) ->
-      failwith "If Not Implemented";
+      let else_label = new_label () in
+      let end_label = new_label () in
+      gen_expr frame cond ++
+      testq (reg rax) (reg rax) ++
+      je else_label ++
+      gen_stmt frame then_ ++
+      jmp end_label ++
+      label else_label ++
+      gen_stmt frame else_ ++
+      label end_label
   | TEreturn exprs ->
       begin match exprs with
       | [] ->
@@ -213,7 +222,15 @@ and gen_stmt frame s = match s.expr_desc with
         code ++ gen_stmt frame s
       ) nop exprs
   | TEfor (cond, body) ->
-      failwith "For Not Implemented";
+      let loop_start = new_label () in
+      let loop_end = new_label () in
+      label loop_start ++
+      gen_expr frame cond ++
+      testq (reg rax) (reg rax) ++
+      je loop_end ++
+      gen_stmt frame body ++
+      jmp loop_start ++
+      label loop_end
   | _ ->
       gen_expr frame s
 
