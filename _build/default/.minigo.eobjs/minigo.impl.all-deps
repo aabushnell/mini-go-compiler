@@ -1,0 +1,10 @@
+ast
+compile
+lexer
+lib
+parser
+pretty
+rewrite
+tast
+typing
+x86_64
