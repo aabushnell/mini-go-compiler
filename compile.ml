@@ -115,7 +115,8 @@ let rec gen_expr frame e = match e.expr_desc with
   | TEnil -> movq (imm 0) (reg rax)
   | TEnew typ ->
       let size = typ_size typ in
-      movq (imm size) (reg rdi) ++
+      movq (imm 1) (reg rdi) ++
+      movq (imm size) (reg rsi) ++
       call "calloc_"
   | TEcall (fn, args) ->
       let push_args =
