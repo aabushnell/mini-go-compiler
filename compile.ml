@@ -105,7 +105,12 @@ let rec gen_expr frame e = match e.expr_desc with
           gen_laddr frame expr
       | Ustar ->
           gen_expr frame expr ++
-          movq (ind rax) (reg rax)
+          begin match expr.expr_typ with
+          | Tptr (Tstruct _) ->
+              nop
+          | _ ->
+              movq (ind rax) (reg rax)
+          end
       end
   | TEnil -> movq (imm 0) (reg rax)
   | TEnew typ ->
