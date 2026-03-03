@@ -83,7 +83,7 @@ let rec gen_expr frame e = match e.expr_desc with
   | TEassign (lhs_exprs, rhs_exprs) ->
       let lexpr = List.hd lhs_exprs in
       let rexpr = List.hd rhs_exprs in
-      gen_lstore frame lexpr ++
+      gen_laddr frame lexpr ++
       pushq (reg rax) ++
       gen_expr frame rexpr ++
       movq (reg rax) (reg rcx) ++
@@ -95,7 +95,7 @@ let rec gen_expr frame e = match e.expr_desc with
   | _ ->
       nop (* TODO: continue implementation *)
 
-and gen_lstore frame lexpr =
+and gen_laddr frame lexpr =
   match lexpr.expr_desc with
   | TEident var ->
       let offset =
@@ -104,8 +104,7 @@ and gen_lstore frame lexpr =
           try Hashtbl.find frame.params var.v_id
           with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
       in
-      popq rcx ++
-      movq (reg rcx) (ind ~ofs:offset rbp)
+      leaq (ind ~ofs:offset rbp) rax
   | TEdot (expr, ofield) ->
       failwith "Field assignment not implemented"
   | TEunop (Ustar, expr) ->
