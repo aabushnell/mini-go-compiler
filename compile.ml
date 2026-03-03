@@ -46,6 +46,11 @@ let new_frame () = {
 
 (* NOTE: expression generation *)
 
+let rec typ_size = function
+  | Tint | Tbool | Tstring | Tptr _ -> 8
+  | Tstruct s -> s.s_size
+  | _ -> failwith "Unsupported type for size"
+
 let rec gen_expr frame e = match e.expr_desc with
   | TEconstant c ->
       begin match c with
@@ -88,6 +93,10 @@ let rec gen_expr frame e = match e.expr_desc with
           gen_expr frame expr ++
           movq (ind rax) (reg rax)
       end
+  | TEnew typ ->
+      let size = typ_size typ in
+      movq (imm size) (reg rdi) ++
+      call "malloc_"
   | TEcall (fn, args) ->
       let push_args =
         List.fold_left (fun code arg ->
@@ -107,6 +116,10 @@ let rec gen_expr frame e = match e.expr_desc with
           with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
       in
       movq (ind ~ofs:offset rbp) (reg rax)
+  | TEdot (expr, field) ->
+      gen_expr frame expr ++
+      addq (imm field.f_ofs) (reg rax) ++
+      movq (ind rax) (reg rax)
   | TEassign (lhs_exprs, rhs_exprs) ->
       let lexpr = List.hd lhs_exprs in
       let rexpr = List.hd rhs_exprs in
@@ -139,8 +152,9 @@ and gen_laddr frame lexpr =
           with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
       in
       leaq (ind ~ofs:offset rbp) rax
-  | TEdot (expr, ofield) ->
-      failwith "Field assignment not implemented"
+  | TEdot (expr, field) ->
+      gen_expr frame expr ++
+      addq (imm field.f_ofs) (reg rax)
   | TEunop (Ustar, expr) ->
       gen_expr frame expr
   | _ ->
