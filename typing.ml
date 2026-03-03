@@ -177,6 +177,10 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
         | Uamp ->
             if not res.lvalue then
               errorm ~loc:e.pexpr_loc "Can only take address of an l-value";
+            begin match res.texpr.expr_desc with
+            | TEident v -> v.v_addr <- true
+            | _ -> ()
+            end;
             (Tptr typ, false)
         | Ustar ->
             let pt_typ =
