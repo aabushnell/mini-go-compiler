@@ -81,26 +81,37 @@ let rec gen_expr frame e = match e.expr_desc with
       in
       movq (ind ~ofs:offset rbp) (reg rax)
   | TEassign (lhs_exprs, rhs_exprs) ->
-      gen_expr frame (List.hd rhs_exprs) ++
+      let lexpr = List.hd lhs_exprs in
+      let rexpr = List.hd rhs_exprs in
+      gen_lstore frame lexpr ++
       pushq (reg rax) ++
-      (
-        match (List.hd lhs_exprs).expr_desc with
-        | TEident var ->
-            popq rax ++
-            let offset =
-              try Hashtbl.find frame.locals var.v_id
-              with Not_found -> 
-                try Hashtbl.find frame.params var.v_id
-                with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
-            in
-            movq (reg rax) (ind ~ofs:offset rbp)
-        | _ ->
-            failwith "Complex lvalues Not Implemented";
-      )
+      gen_expr frame rexpr ++
+      movq (reg rax) (reg rcx) ++
+      popq rax ++
+      movq (reg rcx) (ind rax) ++
+      movq (reg rcx) (reg rax)
   | TEprint exprs ->
       gen_print frame exprs
   | _ ->
       nop (* TODO: continue implementation *)
+
+and gen_lstore frame lexpr =
+  match lexpr.expr_desc with
+  | TEident var ->
+      let offset =
+        try Hashtbl.find frame.locals var.v_id
+        with Not_found -> 
+          try Hashtbl.find frame.params var.v_id
+          with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
+      in
+      popq rcx ++
+      movq (reg rcx) (ind ~ofs:offset rbp)
+  | TEdot (expr, ofield) ->
+      failwith "Field assignment not implemented"
+  | TEunop (Ustar, expr) ->
+      failwith "Pointer dereference assignment not implemented"
+  | _ ->
+      failwith "Invalid lvalue in assignment"
 
 and gen_print frame exprs =
   List.fold_left (fun code expr ->
