@@ -47,13 +47,16 @@ let new_frame () = {
 (* NOTE: expression generation *)
 
 let rec expr frame e = match e.expr_desc with
-  | TEconstant (Cint i) ->
-      movq (imm64 i) (reg rax)
-  | TEconstant (Cbool b) ->
-      movq (imm (if b then 1 else 0)) (reg rax)
-  | TEconstant (Cstring s) ->
-      let lbl = get_string_label s in
-      leaq (lab lbl) rax
+  | TEconstant c ->
+      begin match c with
+      | Cbool b ->
+          movq (imm (if b then 1 else 0)) (reg rax)
+      | Cint i ->
+          movq (imm64 i) (reg rax)
+      | Cstring s ->
+          let lbl = get_string_label s in
+          leaq (lab lbl) rax
+      end
   | TEprint el ->
       print_exprs frame el
   | _ ->
