@@ -74,8 +74,17 @@ let rec gen_expr frame e = match e.expr_desc with
         | Bsub -> subq (reg rcx) (reg rax)
         | Bmul -> imulq (reg rcx) (reg rax)
         | Bdiv -> cqto ++ idivq (reg rcx)
-        | _ ->
-            failwith "Bop Not Implemented";
+        | Bmod -> cqto ++ idivq (reg rcx) ++ movq (reg rdx) (reg rax)
+
+        | Beq -> cmpq (reg rcx) (reg rax) ++ sete (reg al) ++ movzbq (reg al) (rax)
+        | Bne -> cmpq (reg rcx) (reg rax) ++ setne (reg al) ++ movzbq (reg al) (rax)
+        | Blt -> cmpq (reg rcx) (reg rax) ++ setl (reg al) ++ movzbq (reg al) (rax)
+        | Ble -> cmpq (reg rcx) (reg rax) ++ setle (reg al) ++ movzbq (reg al) (rax)
+        | Bgt -> cmpq (reg rcx) (reg rax) ++ setg (reg al) ++ movzbq (reg al) (rax)
+        | Bge -> cmpq (reg rcx) (reg rax) ++ setge (reg al) ++ movzbq (reg al) (rax)
+
+        | Band -> andq (reg rcx) (reg rax)
+        | Bor  -> orq (reg rcx) (reg rax)
       )
   | TEunop (op, expr) ->
       begin match op with
