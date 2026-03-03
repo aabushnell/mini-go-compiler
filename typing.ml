@@ -649,28 +649,35 @@ let file ~debug:b (imp, dl : Ast.pfile) : Tast.tfile =
           try Hashtbl.find genv.structs ps.ps_name.id
           with Not_found -> assert false
         in
+        let seen_fields = Hashtbl.create Config.table_sizes.seen_ids in
+
+        let rec typ_size typ =
+          match typ with
+          | Tint | Tbool | Tptr _ | Tstring | Tnil -> 8
+          | Tstruct st -> st.s_size
+          | _ -> 0
+        in
 
         (* check for duplicate fields and well-formed field types *)
-        let seen_fields = Hashtbl.create Config.table_sizes.seen_ids in
-        let fields =
-          List.map (fun (id, pt) ->
+        let size, fields =
+          List.fold_left_map (fun ofs (id, pt) ->
             let fname = id.id in
             if Hashtbl.mem seen_fields fname then
               errorm ~loc:id.loc "Duplicate field name %s in struct %s" fname ps.ps_name.id;
             Hashtbl.add seen_fields fname ();
 
-            let t = form_type genv.structs pt in
+            let typ = form_type genv.structs pt in
             let f : Tast.field = {
               f_name = fname;
-              f_typ  = t;
-              f_ofs  = 0
+              f_typ  = typ;
+              f_ofs  = ofs
             } in
             Hashtbl.add s.s_fields fname f;
-
-            f
-          ) ps.ps_fields
+            (ofs + typ_size typ, f)
+          ) 0 ps.ps_fields
         in
-        s.s_list <- fields
+        s.s_list <- fields;
+        s.s_size <- size
     | PDfunction _ -> ()
   ) dl;
   if !debug then Printf.eprintf "Step 2b done\n%!";
