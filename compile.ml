@@ -95,12 +95,19 @@ and gen_print frame el =
 
 (* NOTE: statement generation *)
 
-let rec stmt frame s = match s.expr_desc with
+let rec gen_stmt frame s = match s.expr_desc with
+  | TEvars vars ->
+      failwith "Vars Not Implemented";
+  | TEif (cond, then_, else_) ->
+      failwith "If Not Implemented";
+  | TEreturn exprs ->
+      failwith "Return Not Implemented";
   | TEblock bl ->
-      List.fold_left (fun code s -> code ++ stmt frame s) nop bl
-  | TEprint el ->
-      gen_print frame el
-  | _ -> nop (* TODO: continue implementation *)
+      List.fold_left (fun code s -> code ++ gen_stmt frame s) nop bl
+  | TEfor (cond, body) ->
+      failwith "For Not Implemented";
+  | _ ->
+      gen_expr frame s
 
 (* NOTE: function generation *)
 
@@ -119,7 +126,7 @@ let function_ asm_name (f, body) =
   pushq (reg rbp) ++
   movq (reg rsp) (reg rbp) ++
   (* Body *)
-  stmt frame body ++
+  gen_stmt frame body ++
   (* Return default 0 if no explicit return *)
   xorq (reg rax) (reg rax) ++
   movq (reg rbp) (reg rsp) ++
