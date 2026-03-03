@@ -64,12 +64,13 @@ and print_exprs frame el =
     (* Evaluate expression to %rax *)
     code ++
     expr frame e ++
-    (* Push argument for printf *)
-    pushq (reg rax) ++
+    (* move to %rsi (2nd arg) *)
+    movq (reg rax) (reg rsi) ++
     (* Get format string - for now assume int *)
-    leaq (lab (get_string_label "%d\n")) rax ++
-    pushq (reg rax) ++
-    xorq (reg rax) (reg rax) ++  (* clear %rax for variadic function *)
+    let fmt_lbl = get_string_label "%d\n" in
+    leaq (lab fmt_lbl) rdi ++
+    (* clear %rax for variadic function *)
+    xorq (reg rax) (reg rax) ++
     call "printf_" ++
     addq (imm 16) (reg rsp)      (* clean up stack *)
   ) nop el
