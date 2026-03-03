@@ -89,12 +89,12 @@ let rec gen_expr frame e = match e.expr_desc with
           movq (ind rax) (reg rax)
       end
   | TEcall (fn, args) ->
-      let push_args = 
-        List.fold_right (fun arg code ->
+      let push_args =
+        List.fold_left (fun code arg ->
+          code ++
           gen_expr frame arg ++
-          pushq (reg rax) ++
-          code
-        ) args nop
+          pushq (reg rax)
+        ) nop (List.rev args)
       in
       push_args ++
       call fn.fn_name ++
