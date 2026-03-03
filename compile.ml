@@ -192,23 +192,64 @@ and gen_laddr frame lexpr =
 
 and gen_print frame exprs =
   List.fold_left (fun code expr ->
-    let fmt_str =
-      match expr.expr_typ with
-      | Tint      -> "%d"
-      | Tbool     -> "%d"
-      | Tstring   -> "%s"
-      | Tptr _    -> "%p"
-      | Tstruct _ -> "%p"
-      | _         -> "%d"
-    in
-
-    code ++
-    gen_expr frame expr ++
-    movq (reg rax) (reg rsi) ++
-    let fmt_lbl = get_string_label fmt_str in
-    leaq (lab fmt_lbl) rdi ++
-    xorq (reg rax) (reg rax) ++
-    call "printf_"
+    match expr.expr_typ with
+    | Tint ->
+        let fmt_lbl = get_string_label "%d" in
+        code ++
+        gen_expr frame expr ++
+        movq (reg rax) (reg rsi) ++
+        leaq (lab fmt_lbl) rdi ++
+        xorq (reg rax) (reg rax) ++
+        call "printf_"
+    | Tbool ->
+        let true_lbl = get_string_label "true" in
+        let false_lbl = get_string_label "false" in
+        let fmt_lbl = get_string_label "%s" in
+        let l_false = new_label () in
+        let l_done = new_label () in
+        code ++
+        gen_expr frame expr ++
+        testq (reg rax) (reg rax) ++
+        je l_false ++
+        leaq (lab true_lbl) rsi ++
+        jmp l_done ++
+        label l_false ++
+        leaq (lab false_lbl) rsi ++
+        label l_done ++
+        leaq (lab fmt_lbl) rdi ++
+        xorq (reg rax) (reg rax) ++
+        call "printf_"
+    | Tstring ->
+        let fmt_lbl = get_string_label "%s" in
+        code ++
+        gen_expr frame expr ++
+        movq (reg rax) (reg rsi) ++
+        leaq (lab fmt_lbl) rdi ++
+        xorq (reg rax) (reg rax) ++
+        call "printf_"
+    | Tptr _ | Tstruct _ ->
+        let nil_lbl = get_string_label "<nil>" in
+        let fmt_p_lbl = get_string_label "%p" in
+        let fmt_s_lbl = get_string_label "%s" in
+        let l_nil = new_label () in
+        let l_done = new_label () in
+        code ++
+        gen_expr frame expr ++
+        testq (reg rax) (reg rax) ++
+        je l_nil ++
+        movq (reg rax) (reg rsi) ++
+        leaq (lab fmt_p_lbl) rdi ++
+        xorq (reg rax) (reg rax) ++
+        call "printf_" ++
+        jmp l_done ++
+        label l_nil ++
+        leaq (lab nil_lbl) rsi ++
+        leaq (lab fmt_s_lbl) rdi ++
+        xorq (reg rax) (reg rax) ++
+        call "printf_" ++
+        label l_done
+    | _ ->
+        code
   ) nop exprs
 
 (* NOTE: statement generation *)
