@@ -469,12 +469,17 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
       let returns = then_res.returns && else_res.returns in
       mk_result ~returns:returns texpr
   | PEreturn pexprs ->
-      let exprs =
-        List.map (fun pexpr ->
-          let res = form_expr fenv pexpr in
-          res.texpr
-        ) pexprs
-      in
+      let results = List.map (fun pexpr -> form_expr fenv pexpr) pexprs in
+
+      List.iter (fun res ->
+        match res.texpr.expr_desc with
+        | TEunop (Uamp, {expr_desc = TEident v}) ->
+            if Hashtbl.mem fenv.local v.v_name then
+              v.v_addr <- true
+        | _ -> ()
+      ) results;
+
+      let exprs = List.map (fun res -> res.texpr) results in
 
       let typs =
         match exprs with
