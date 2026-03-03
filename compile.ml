@@ -193,15 +193,22 @@ and gen_stmt frame s = match s.expr_desc with
         code ++ subq (imm 8) (reg rsp)
       ) nop vars
   | TEif (cond, then_, else_) ->
-      let else_label = new_label () in
       let end_label = new_label () in
       gen_expr frame cond ++
       testq (reg rax) (reg rax) ++
-      je else_label ++
-      gen_stmt frame then_ ++
-      jmp end_label ++
-      label else_label ++
-      gen_stmt frame else_ ++
+      (
+        match else_.expr_desc with
+        | TEskip ->
+            je end_label ++
+            gen_stmt frame then_
+        | _ ->
+            let else_label = new_label () in
+            je else_label ++
+            gen_stmt frame then_ ++
+            jmp end_label ++
+            label else_label ++
+            gen_stmt frame else_
+      ) ++
       label end_label
   | TEreturn exprs ->
       begin match exprs with
