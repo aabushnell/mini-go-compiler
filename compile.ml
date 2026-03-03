@@ -62,7 +62,7 @@ let rec gen_expr frame e = match e.expr_desc with
       | Cbool b ->
           movq (imm (if b then 1 else 0)) (reg rax)
       | Cint i ->
-          movq (imm64 i) (reg rax)
+          movabsq (imm64 i) rax
       | Cstring s ->
           let lbl = get_string_label s in
           leaq (lab lbl) rax
