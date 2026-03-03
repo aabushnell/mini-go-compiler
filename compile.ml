@@ -195,7 +195,7 @@ and gen_print frame exprs =
   List.fold_left (fun code expr ->
     match expr.expr_typ with
     | Tint ->
-        let fmt_lbl = get_string_label "%d" in
+        let fmt_lbl = get_string_label "%ld" in
         code ++
         gen_expr frame expr ++
         movq (reg rax) (reg rsi) ++
