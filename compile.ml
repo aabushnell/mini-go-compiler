@@ -25,6 +25,10 @@ let get_string_label s =
     string_literals := (s, lbl) :: !string_literals;
     lbl
 
+let get_empty_string_label =
+  let lbl = get_string_label "" in
+  lbl
+
 let generate_data () =
   List.fold_left (fun code (s, lbl) ->
     code ++ label lbl ++ string s
@@ -107,7 +111,7 @@ let rec gen_expr frame e = match e.expr_desc with
   | TEnew typ ->
       let size = typ_size typ in
       movq (imm size) (reg rdi) ++
-      call "malloc_"
+      call "calloc_"
   | TEcall (fn, args) ->
       let push_args =
         List.fold_left (fun code arg ->
@@ -210,7 +214,20 @@ and gen_stmt frame s = match s.expr_desc with
         let offset = frame.stack_offset in
         Hashtbl.add frame.locals v.v_id offset;
         frame.stack_offset <- offset - 8;
-        code ++ subq (imm 8) (reg rsp)
+
+        let init =
+          match v.v_typ with
+          | Tstring ->
+              let empty_lbl = get_string_label "" in
+              leaq (lab empty_lbl) rax ++
+              movq (reg rax) (ind ~ofs:offset rbp)
+          | _ ->
+              movq (imm 0) (ind ~ofs:offset rbp)
+        in
+
+        code ++
+        subq (imm 8) (reg rsp) ++
+        init
       ) nop vars
   | TEif (cond, then_, else_) ->
       let end_label = new_label () in
