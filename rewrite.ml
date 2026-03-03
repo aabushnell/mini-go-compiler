@@ -170,7 +170,16 @@ let rec expr rw e =
       let bl = List.fold_left2 assign [stmt (TEreturn [])] vl el in
       stmt (TEblock bl)
   | TEblock bl ->
-      mk (TEblock (block rw bl))
+      let rec flatten acc = function
+      | [] -> List.rev acc
+      | { expr_desc = TEblock bl1; _ } :: rest ->
+          (* splice inner block statements into this one *)
+          flatten acc (bl1 @ rest)
+      | e :: rest ->
+          flatten (e :: acc) rest
+      in
+      let bl_flat = flatten [] bl in
+    mk (TEblock (block rw bl_flat))
   | TEfor (e1, e2) ->
       mk (TEfor (expr rw e1, expr rw e2))
   | TEprint el ->
