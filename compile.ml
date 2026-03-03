@@ -117,6 +117,13 @@ let rec gen_expr frame e = match e.expr_desc with
       popq rax ++
       movq (reg rcx) (ind rax) ++
       movq (reg rcx) (reg rax)
+  | TEblock exprs ->
+      let rec eval = function
+        | [] -> movq (imm 0) (reg rax)
+        | [expr] -> gen_expr frame expr
+        | e::es -> gen_stmt frame e ++ eval es
+      in
+      eval exprs
   | TEprint exprs ->
       gen_print frame exprs
   | _ ->
@@ -152,7 +159,7 @@ and gen_print frame exprs =
 
 (* NOTE: statement generation *)
 
-let rec gen_stmt frame s = match s.expr_desc with
+and gen_stmt frame s = match s.expr_desc with
   | TEvars vars ->
       List.fold_left (fun code v ->
         let offset = frame.stack_offset in
