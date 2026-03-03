@@ -52,6 +52,7 @@ let rec typ_size = function
   | _ -> failwith "Unsupported type for size"
 
 let rec gen_expr frame e = match e.expr_desc with
+  | TEskip -> nop
   | TEconstant c ->
       begin match c with
       | Cbool b ->
@@ -102,6 +103,7 @@ let rec gen_expr frame e = match e.expr_desc with
           gen_expr frame expr ++
           movq (ind rax) (reg rax)
       end
+  | TEnil -> movq (imm 0) (reg rax)
   | TEnew typ ->
       let size = typ_size typ in
       movq (imm size) (reg rdi) ++
@@ -126,8 +128,6 @@ let rec gen_expr frame e = match e.expr_desc with
       in
       movq (ind ~ofs:offset rbp) (reg rax)
   | TEdot (expr, field) ->
-      Printf.eprintf "DEBUG: Accessing field %s with offset %d\n" 
-        field.f_name field.f_ofs;
       gen_expr frame expr ++
       addq (imm field.f_ofs) (reg rax) ++
       movq (ind rax) (reg rax)
@@ -150,8 +150,18 @@ let rec gen_expr frame e = match e.expr_desc with
       eval exprs
   | TEprint exprs ->
       gen_print frame exprs
+  | TEincdec (expr, op) ->
+      gen_laddr frame expr ++
+      pushq (reg rax) ++
+      movq (ind rax) (reg rax) ++
+      (match op with
+       | Inc -> incq (reg rax)
+       | Dec -> decq (reg rax)
+      )++
+      popq (rcx) ++
+      movq (reg rax) (ind rcx)
   | _ ->
-      nop (* TODO: continue implementation *)
+      failwith "Cannot handle this expression type"
 
 and gen_laddr frame lexpr =
   match lexpr.expr_desc with
