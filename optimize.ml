@@ -282,6 +282,11 @@ and opt_stmt env (s: Tast.expr) : Oast.expr * env =
         | _ -> env
       in
       (liftTExpr s (OEincdec (opt_expr env e1, op)), env')
+
+  | TEcall (f, args) ->
+      let opt_args = List.map (opt_expr env) args in
+      let env' = kill_all env (List.concat_map addr_targets args) in
+      (liftTExpr s (OEcall (f, opt_args)), env')
   | _ ->
       (opt_expr env s, env)
 
@@ -296,10 +301,16 @@ and assigned_vars (e: Tast.expr) : var list =
   match e.expr_desc with
   | TEassign ([{expr_desc = TEident v}], _) -> [v]
   | TEincdec ({expr_desc = TEident v}, _)   -> [v]
-  | TEblock stmts  -> List.concat_map assigned_vars stmts
-  | TEif (_, a, b) -> assigned_vars a @ assigned_vars b
-  | TEfor (_, b)   -> assigned_vars b
-  | TEvars vl      -> vl
+  | TEblock stmts    -> List.concat_map assigned_vars stmts
+  | TEif (_, a, b)   -> assigned_vars a @ assigned_vars b
+  | TEfor (_, b)     -> assigned_vars b
+  | TEvars vl        -> vl
+  | TEcall (_, args) ->
+      List.concat_map (fun (arg: Tast.expr) ->
+        match arg.expr_desc with
+        | TEunop (Uamp, {expr_desc = TEident v}) -> [v]
+        | _ -> []
+      ) args
   | _              -> []
 
 let function_ f (body: Tast.expr) : Oast.odecl =
