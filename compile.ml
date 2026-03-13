@@ -374,12 +374,12 @@ let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
   debug := b;
   string_literals := [];
 
-  let text_code = 
+  let text_code =
     List.fold_left (fun code d -> match d with
       | TDfunction (f, e) ->
           let asm_name = if f.fn_name = "main" then "main_go" else f.fn_name in
           code ++ function_ asm_name (f, e)
-      | TDstruct _ -> code  (* nothing to generate for structs *)
+      | TDstruct _ -> code
     ) nop dl
   in
 
