@@ -68,12 +68,20 @@ let rec gen_expr frame e = match e.expr_desc with
           let lbl = get_string_label s in
           leaq (lab lbl) rax
       end
+  (* mult -> shl *)
   | OEbinop (Bshl, expr1, { expr_desc = OEconstant (Cint k); _ }) ->
       gen_expr frame expr1 ++
       shlq (imm (Int64.to_int k)) (reg rax)
+  (* div -> shr *)
   | OEbinop (Bshr, expr1, { expr_desc = OEconstant (Cint k); _ }) ->
+      let k_int    = Int64.to_int k in
+      let mask  = Int64.sub (Int64.shift_left 1L k_int) 1L in
       gen_expr frame expr1 ++
-      sarq (imm (Int64.to_int k)) (reg rax)
+      movq (reg rax) (reg rcx) ++
+      sarq (imm 63) (reg rcx) ++
+      andq (imm64 mask) (reg rcx) ++
+      addq (reg rcx) (reg rax) ++
+      sarq (imm k_int) (reg rax)
   | OEbinop (op, expr1, expr2) ->
       gen_expr frame expr1 ++
       pushq (reg rax) ++
