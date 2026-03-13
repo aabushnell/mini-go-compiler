@@ -12,6 +12,7 @@ type binop =
   | Badd | Bsub | Bmul | Bdiv | Bmod
   | Beq | Bne | Blt | Ble | Bgt | Bge
   | Band | Bor (** && || *)
+  | Bshl | Bshr
 
 type constant =
   | Cbool of bool

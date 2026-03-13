@@ -90,6 +90,9 @@ let rec gen_expr frame e = match e.expr_desc with
 
         | Band -> andq (reg rcx) (reg rax)
         | Bor  -> orq (reg rcx) (reg rax)
+
+        | Bshl -> shlq (reg rcx) (reg rax)
+        | Bshr -> shrq (reg rcx) (reg rax)
       )
   | TEunop (op, expr) ->
       begin match op with
