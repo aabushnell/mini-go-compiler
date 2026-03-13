@@ -159,8 +159,6 @@ let rec form_expr (fenv: func_env) (e: Ast.pexpr) : expr_res =
             if not types_match then
               errorm ~loc:e.pexpr_loc "Invalid ==/!= operand types";
             Tbool
-        | Bshl | Bshr ->
-            assert false
       in
       let texpr = { expr_desc = TEbinop (op, res1.texpr, res2.texpr); expr_typ = op_typ } in
       mk_result texpr
