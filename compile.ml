@@ -4,6 +4,7 @@
 open Format
 open Ast
 open Tast
+open Oast
 open X86_64
 
 let debug = ref false
@@ -56,8 +57,8 @@ let rec typ_size = function
   | _ -> failwith "Unsupported type for size"
 
 let rec gen_expr frame e = match e.expr_desc with
-  | TEskip -> nop
-  | TEconstant c ->
+  | OEskip -> nop
+  | OEconstant c ->
       begin match c with
       | Cbool b ->
           movq (imm (if b then 1 else 0)) (reg rax)
@@ -67,7 +68,13 @@ let rec gen_expr frame e = match e.expr_desc with
           let lbl = get_string_label s in
           leaq (lab lbl) rax
       end
-  | TEbinop (op, expr1, expr2) ->
+  | OEbinop (Bshl, expr1, { expr_desc = OEconstant (Cint k); _ }) ->
+      gen_expr frame expr1 ++
+      shlq (imm (Int64.to_int k)) (reg rax)
+  | OEbinop (Bshr, expr1, { expr_desc = OEconstant (Cint k); _ }) ->
+      gen_expr frame expr1 ++
+      sarq (imm (Int64.to_int k)) (reg rax)
+  | OEbinop (op, expr1, expr2) ->
       gen_expr frame expr1 ++
       pushq (reg rax) ++
       gen_expr frame expr2 ++
@@ -90,11 +97,11 @@ let rec gen_expr frame e = match e.expr_desc with
 
         | Band -> andq (reg rcx) (reg rax)
         | Bor  -> orq (reg rcx) (reg rax)
-
-        | Bshl -> shlq (reg rcx) (reg rax)
-        | Bshr -> shrq (reg rcx) (reg rax)
+        | Bshl | Bshr ->
+            (* should be unreachable *)
+            assert false
       )
-  | TEunop (op, expr) ->
+  | OEunop (op, expr) ->
       begin match op with
       | Uneg ->
           gen_expr frame expr ++
@@ -115,13 +122,13 @@ let rec gen_expr frame e = match e.expr_desc with
               movq (ind rax) (reg rax)
           end
       end
-  | TEnil -> movq (imm 0) (reg rax)
-  | TEnew typ ->
+  | OEnil -> movq (imm 0) (reg rax)
+  | OEnew typ ->
       let size = typ_size typ in
       movq (imm 1) (reg rdi) ++
       movq (imm size) (reg rsi) ++
       call "calloc_"
-  | TEcall (fn, args) ->
+  | OEcall (fn, args) ->
       let push_args =
         List.fold_left (fun code arg ->
           code ++
@@ -132,7 +139,7 @@ let rec gen_expr frame e = match e.expr_desc with
       push_args ++
       call fn.fn_name ++
       addq (imm (8 * List.length args)) (reg rsp)
-  | TEident var ->
+  | OEident var ->
       let offset =
         try Hashtbl.find frame.locals var.v_id
         with Not_found ->
@@ -140,13 +147,11 @@ let rec gen_expr frame e = match e.expr_desc with
           with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
       in
       movq (ind ~ofs:offset rbp) (reg rax)
-  | TEdot (expr, field) ->
+  | OEdot (expr, field) ->
       gen_expr frame expr ++
       addq (imm field.f_ofs) (reg rax) ++
       movq (ind rax) (reg rax)
-  | TEassign (lhs_exprs, rhs_exprs) ->
-      let lexpr = List.hd lhs_exprs in
-      let rexpr = List.hd rhs_exprs in
+  | OEassign (lexpr, rexpr) ->
       gen_laddr frame lexpr ++
       pushq (reg rax) ++
       gen_expr frame rexpr ++
@@ -154,16 +159,16 @@ let rec gen_expr frame e = match e.expr_desc with
       popq rax ++
       movq (reg rcx) (ind rax) ++
       movq (reg rcx) (reg rax)
-  | TEblock exprs ->
+  | OEblock exprs ->
       let rec eval = function
         | [] -> movq (imm 0) (reg rax)
         | [expr] -> gen_expr frame expr
         | e::es -> gen_stmt frame e ++ eval es
       in
       eval exprs
-  | TEprint exprs ->
+  | OEprint exprs ->
       gen_print frame exprs
-  | TEincdec (expr, op) ->
+  | OEincdec (expr, op) ->
       gen_laddr frame expr ++
       pushq (reg rax) ++
       movq (ind rax) (reg rax) ++
@@ -178,7 +183,7 @@ let rec gen_expr frame e = match e.expr_desc with
 
 and gen_laddr frame lexpr =
   match lexpr.expr_desc with
-  | TEident var ->
+  | OEident var ->
       let offset =
         try Hashtbl.find frame.locals var.v_id
         with Not_found -> 
@@ -186,10 +191,10 @@ and gen_laddr frame lexpr =
           with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
       in
       leaq (ind ~ofs:offset rbp) rax
-  | TEdot (expr, field) ->
+  | OEdot (expr, field) ->
       gen_expr frame expr ++
       addq (imm field.f_ofs) (reg rax)
-  | TEunop (Ustar, expr) ->
+  | OEunop (Ustar, expr) ->
       gen_expr frame expr
   | _ ->
       failwith "Invalid lvalue in assignment"
@@ -200,8 +205,8 @@ and gen_print frame exprs =
 
   let (code, _) = List.fold_left (fun (code, prev_was_string) expr ->
     let is_string = match expr.expr_typ with | Tstring -> true | _ -> false in
-    
-    let code = 
+
+    let code =
       if not prev_was_string && not is_string then
         code ++
         leaq (lab space_lbl) rsi ++
@@ -211,7 +216,7 @@ and gen_print frame exprs =
       else
         code
     in
-    
+
     let code = match expr.expr_typ with
     | Tint ->
         let fmt_lbl = get_string_label "%ld" in
@@ -269,14 +274,14 @@ and gen_print frame exprs =
         code
     in
     (code, is_string)
-  ) (nop, true) exprs  (* Start with true = no space before first arg *)
+  ) (nop, true) exprs  (* start with true *)
   in
   code
 
 (* NOTE: statement generation *)
 
 and gen_stmt frame s = match s.expr_desc with
-  | TEvars vars ->
+  | OEvars vars ->
       List.fold_left (fun code v ->
         let offset = frame.stack_offset in
         Hashtbl.add frame.locals v.v_id offset;
@@ -296,13 +301,13 @@ and gen_stmt frame s = match s.expr_desc with
         subq (imm 8) (reg rsp) ++
         init
       ) nop vars
-  | TEif (cond, then_, else_) ->
+  | OEif (cond, then_, else_) ->
       let end_label = new_label () in
       gen_expr frame cond ++
       testq (reg rax) (reg rax) ++
       (
         match else_.expr_desc with
-        | TEskip ->
+        | OEskip ->
             je end_label ++
             gen_stmt frame then_
         | _ ->
@@ -314,25 +319,20 @@ and gen_stmt frame s = match s.expr_desc with
             gen_stmt frame else_
       ) ++
       label end_label
-  | TEreturn exprs ->
-      begin match exprs with
-      | [] ->
-          movq (reg rbp) (reg rsp) ++
-          popq rbp ++
-          ret
-      | [expr] ->
-          gen_expr frame expr ++
-          movq (reg rbp) (reg rsp) ++
-          popq rbp ++
-          ret
-      | _ ->
-          failwith "Multiple Returns Not Supported";
-      end
-  | TEblock exprs ->
+  | OEreturn None ->
+      movq (reg rbp) (reg rsp) ++
+      popq rbp ++
+      ret
+  | OEreturn (Some expr) ->
+      gen_expr frame expr ++
+      movq (reg rbp) (reg rsp) ++
+      popq rbp ++
+      ret
+  | OEblock exprs ->
       List.fold_left (fun code s ->
         code ++ gen_stmt frame s
       ) nop exprs
-  | TEfor (cond, body) ->
+  | OEfor (cond, body) ->
       let loop_start = new_label () in
       let loop_end = new_label () in
       label loop_start ++
@@ -367,27 +367,27 @@ let function_ asm_name (f, body) =
   popq rbp ++
   ret
 
-let find_main (dl: tfile) =
+let find_main (dl: ofile) =
   List.find_opt (function
-    | TDfunction (f, _) -> f.fn_name = "main"
+    | ODfunction (f, _) -> f.fn_name = "main"
     | _ -> false
   ) dl
 
-let file ?debug:(b=false) (dl: Tast.tfile): X86_64.program =
+let file ?debug:(b=false) (dl: Oast.ofile): X86_64.program =
   debug := b;
   string_literals := [];
 
   let text_code =
     List.fold_left (fun code d -> match d with
-      | TDfunction (f, e) ->
+      | ODfunction (f, e) ->
           let asm_name = if f.fn_name = "main" then "main_go" else f.fn_name in
           code ++ function_ asm_name (f, e)
-      | TDstruct _ -> code
+      | ODstruct _ -> code
     ) nop dl
   in
 
   let go_main = match find_main dl with
-    | Some (TDfunction (f, _)) -> 
+    | Some (ODfunction (f, _)) -> 
         if f.fn_name = "main" then "main_go" else f.fn_name
     | _ -> "main_missing"
   in

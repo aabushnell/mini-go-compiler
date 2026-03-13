@@ -5,7 +5,7 @@
  (modules parser))
 (executable
  (name minigo)
- (modules_without_implementation ast tast)
+ (modules_without_implementation ast tast oast)
  (promote (until-clean))
  (flags (-g))
  )

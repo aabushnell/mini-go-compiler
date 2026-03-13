@@ -46,7 +46,7 @@ let () =
     if type_only then exit 0;
     let f = Rewrite.file ~debug f in
     if debug then eprintf "%a@." Pretty.file f;
-    let f = Optimize.file f in
+    let f = Optimize.file ~debug f in
     if debug then eprintf "%a@." Pretty.file f;
     let code = Compile.file ~debug f in
     let c = open_out (Filename.chop_suffix file ".go" ^ ".s") in
