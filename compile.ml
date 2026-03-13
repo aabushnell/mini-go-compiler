@@ -186,7 +186,7 @@ and gen_laddr frame lexpr =
   | OEident var ->
       let offset =
         try Hashtbl.find frame.locals var.v_id
-        with Not_found -> 
+        with Not_found ->
           try Hashtbl.find frame.params var.v_id
           with Not_found -> failwith ("Unknown variable: " ^ var.v_name)
       in

@@ -21,6 +21,16 @@ let kill env v = { values = Vmap.remove v env.values }
 
 let kill_all env vl = List.fold_left kill env vl
 
+let rec addr_targets (e: Tast.expr) : var list =
+  match e.expr_desc with
+  | TEunop (Uamp, {expr_desc = TEident v}) -> [v]
+  | TEunop (_, e1)       -> addr_targets e1
+  | TEbinop (_, e1, e2)  -> addr_targets e1 @ addr_targets e2
+  | TEcall (_, args)     -> List.concat_map addr_targets args
+  | _                    -> []
+
+let kill_addr_targets env e = kill_all env (addr_targets e)
+
 let merge_env env1 env2 =
   { values = Vmap.merge (fun _ a b ->
       match a, b with
@@ -159,6 +169,8 @@ let rec opt_expr env (e: Tast.expr) : Oast.expr =
   | TEbinop (op, e1, e2) ->
       fold_binop (transl_binop op) (opt_expr env e1) (opt_expr env e2) e.expr_typ
 
+  | TEunop (Uamp, e1) ->
+      liftTExpr e (OEunop (Uamp, opt_laddr env e1))
   | TEunop (op, e1) ->
       fold_unop op (opt_expr env e1) e.expr_typ
 
@@ -175,6 +187,17 @@ let rec opt_expr env (e: Tast.expr) : Oast.expr =
   | TEreturn  _ | TEblock _ ->
       fst (opt_stmt env e)
 
+and opt_laddr env (e: Tast.expr) : Oast.expr =
+  match e.expr_desc with
+  | TEident v ->
+      mkOExpr (OEident v) e.expr_typ
+  | TEdot (e1, f) ->
+      mkOExpr (OEdot (opt_laddr env e1, f)) e.expr_typ
+  | TEunop (Ustar, e1) ->
+      mkOExpr (OEunop (Ustar, opt_expr env e1)) e.expr_typ
+  | _ ->
+      opt_expr env e
+
 and opt_stmt env (s: Tast.expr) : Oast.expr * env =
   match s.expr_desc with
   | TEskip ->
@@ -186,16 +209,17 @@ and opt_stmt env (s: Tast.expr) : Oast.expr * env =
   | TEassign ([{expr_desc = TEident v}], [rv]) ->
       let rv' = opt_expr env rv in
       let lv'  = mkOExpr (OEident v) v.v_typ in
-      let env' =
+      let env' = kill_addr_targets env rv in
+      let env'' =
         match rv'.expr_desc with
         | OEconstant c when not v.v_addr ->
             { values = Vmap.add v (Const c) env.values }
         | OEident u when not v.v_addr && not u.v_addr ->
             { values = Vmap.add v (Copy u) env.values }
         | _ ->
-            kill env v
+            kill env' v
       in
-      (liftTExpr s (OEassign (lv', rv')), env')
+      (liftTExpr s (OEassign (lv', rv')), env'')
   (* reduce indirect assignment but cannot add to env *)
   | TEassign ([lv], [rv]) ->
       let rv' = opt_expr env rv in
