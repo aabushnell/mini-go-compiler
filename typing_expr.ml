@@ -258,6 +258,9 @@ module ExprTypecheck = struct
           v
 
   let vars ctx typecheck_rec ident_list opt_typ init_exprs loc : expr =
+    let typed_inits = 
+      List.map typecheck_rec init_exprs 
+    in
     let init_types =
       List.map (fun expr -> (typecheck_rec expr).expr_typ) init_exprs
     in
@@ -278,7 +281,25 @@ module ExprTypecheck = struct
     let created_variables =
       List.map2 (create_or_reuse_var ctx) ident_list deduced_types
     in
-    { expr_desc = TEvars created_variables; expr_typ = ResultType.empty }
+
+    let decl = {
+      expr_desc = TEvars created_variables;
+      expr_typ  = ResultType.empty 
+    } in
+    if typed_inits = [] then
+      (* no initializations needed *)
+      decl
+    else
+      (* transform PEvars to a block of TEvar(s) and TEassign(s) *)
+      let lhs = List.map (fun v ->
+        { expr_desc = TEident v; expr_typ = v.v_typ }
+      ) created_variables in
+      let assign = {
+        expr_desc = TEassign (lhs, typed_inits);
+        expr_typ  = ResultType.empty 
+      } in
+      { expr_desc = TEblock [decl; assign]; expr_typ = ResultType.empty }
+
 
   let if_expr typecheck_rec cond then_branch else_branch cond_loc : expr =
     let cond_typed = typecheck_rec cond in

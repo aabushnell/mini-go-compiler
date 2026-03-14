@@ -107,6 +107,24 @@ module EnvBuilder = struct
         populate_struct_fields struct_env s structure)
       structs;
 
+    let rec typ_size = function
+    | Tint | Tbool | Tstring | Tptr _ | Tnil -> 8
+    | Tstruct s -> ensure_computed s; s.s_size
+    | Tmany _ -> 0
+
+    and ensure_computed (s : structure) : unit =
+      (* Guard: skip empty structs (s_size=0, s_list=[]) and already-computed ones *)
+      if s.s_size = 0 && s.s_list <> [] then begin
+        let ofs = ref 0 in
+        List.iter (fun (f : field) ->
+          f.f_ofs <- !ofs;
+          ofs      := !ofs + typ_size f.f_typ
+        ) s.s_list;
+        s.s_size <- !ofs
+      end
+    in
+    Hashtbl.iter (fun _ s -> ensure_computed s) struct_env;
+
     if debug then
       Hashtbl.iter
         (fun name _ -> Printf.printf "known structure: %s\n" name)

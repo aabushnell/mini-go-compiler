@@ -57,28 +57,11 @@ module DeclTypecheck = struct
   let structure struct_env (s : pstruct) : structure =
     Validation.check_no_duplicate_fields s;
 
-    let fields_list =
-      List.map
-        (fun (ident, ptyp) ->
-          {
-            f_name = ident.id;
-            f_typ = Types.from_ptyp struct_env ptyp;
-            f_ofs = 0;
-          })
-        s.ps_fields
-    in
-
-    let fields_hashtbl = Hashtbl.create (List.length fields_list) in
-    List.iter
-      (fun field -> Hashtbl.add fields_hashtbl field.f_name field)
-      fields_list;
-
-    {
-      s_name = s.ps_name.id;
-      s_fields = fields_hashtbl;
-      s_list = fields_list;
-      s_size = 0;
-    }
+    match Hashtbl.find_opt struct_env s.ps_name.id with
+    | Some st -> st
+    | None    -> errorm ~loc:s.ps_name.loc
+                  "internal error: struct %s not found in env"
+                  s.ps_name.id
 
   let declaration struct_env func_env fmt_print_used debug = function
     | PDstruct s -> TDstruct (structure struct_env s)
