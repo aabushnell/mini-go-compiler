@@ -61,7 +61,7 @@ let () =
 	report_loc (lexeme_start_p lb, lexeme_end_p lb);
 	eprintf "syntax error\n@.";
 	exit 1
-    | Typing.Error (l, msg) ->
+    | Typing_error.Error (l, msg) ->
 	report_loc l;
 	eprintf "error: %s\n@." msg;
 	exit 1

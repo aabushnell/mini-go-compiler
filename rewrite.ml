@@ -54,7 +54,7 @@ let mkvar =
   let c = ref 0 in
   fun ty ->
     incr c;
-    let v = Typing.new_var ("aux" ^ string_of_int !c) Typing.dummy_loc ty in
+    let v = Typing_env.new_var ("aux" ^ string_of_int !c) Typing_error.dummy_loc ty in
     v.v_used <- true;
     v
 
