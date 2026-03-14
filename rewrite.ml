@@ -179,7 +179,7 @@ let rec expr rw e =
           flatten (e :: acc) rest
       in
       let bl_flat = flatten [] bl in
-    mk (TEblock (block rw bl_flat))
+      mk (TEblock (block rw bl_flat))
   | TEfor (e1, e2) ->
       mk (TEfor (expr rw e1, expr rw e2))
   | TEprint el ->

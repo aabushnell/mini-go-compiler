@@ -2,34 +2,34 @@ open Ast
 open Tast
 open Oast
 
-module Vmap = Map.Make(struct
+module Vmap = Map.Make (struct
   type t = var
-  let compare v1 v2 = v1.v_id - v2.v_id
+  let compare v1 v2 = Int.compare v1.v_id v2.v_id
 end)
 
-type cell =
+type item =
   | Const of constant
   | Copy of var
 
 type env = {
-  values: cell Vmap.t;
+  values: item Vmap.t;
 }
 
 let empty_env = { values = Vmap.empty }
 
-let kill env v = { values = Vmap.remove v env.values }
+let kill env var = { values = Vmap.remove var env.values }
 
-let kill_all env vl = List.fold_left kill env vl
+let kill_all env vars = List.fold_left kill env vars
 
-let rec addr_targets (e: Tast.expr) : var list =
-  match e.expr_desc with
-  | TEunop (Uamp, {expr_desc = TEident v}) -> [v]
-  | TEunop (_, e1)       -> addr_targets e1
-  | TEbinop (_, e1, e2)  -> addr_targets e1 @ addr_targets e2
-  | TEcall (_, args)     -> List.concat_map addr_targets args
-  | _                    -> []
+let rec addr_targets (expr: Tast.expr) : var list =
+  match expr.expr_desc with
+  | TEunop (Uamp, {expr_desc = TEident var}) -> [var]
+  | TEunop (_, expr1)          -> addr_targets expr1
+  | TEbinop (_, expr1, expr2)  -> addr_targets expr1 @ addr_targets expr2
+  | TEcall (_, args)           -> List.concat_map addr_targets args
+  | _                          -> []
 
-let kill_addr_targets env e = kill_all env (addr_targets e)
+let kill_addr_targets env expr = kill_all env (addr_targets expr)
 
 let merge_env env1 env2 =
   { values = Vmap.merge (fun _ a b ->
@@ -44,11 +44,11 @@ let merge_env env1 env2 =
     ) env1.values env2.values 
   }
 
-let liftTExpr (e: Tast.expr) (d: Oast.expr_desc) : Oast.expr =
-  Oast.{ expr_desc = d; expr_typ = e.expr_typ }
+let liftTExpr (expr: Tast.expr) (desc: Oast.expr_desc) : Oast.expr =
+  { expr_desc = desc; expr_typ = expr.expr_typ }
 
-let mkOExpr (d: Oast.expr_desc) (ty: typ) : Oast.expr =
-  Oast.{ expr_desc = d; expr_typ = ty }
+let mkOExpr (desc: Oast.expr_desc) (typ: typ) : Oast.expr =
+  { expr_desc = desc; expr_typ = typ }
 
 let transl_binop : Ast.binop -> Oast.binop = function
   | Badd -> Oast.Badd
@@ -66,12 +66,17 @@ let transl_binop : Ast.binop -> Oast.binop = function
   | Bor  -> Oast.Bor
 
 let is_power_of_two (n : int64) : bool =
-  n > 0L && Int64.rem n 2L = 0L &&
-  Int64.logand n (Int64.sub n 1L) = 0L
+  let is_pos = n > 0L in
+  let single_bit_set = Int64.logand n (Int64.sub n 1L) = 0L in
+  is_pos && single_bit_set
 
 let log2_int64 (n : int64) : int =
-  let rec loop k x = if x = 1L then k else loop (k+1) (Int64.div x 2L) in
-  loop 0 n
+  let rec count_pow2 k rem =
+    if rem = 1L then
+      k
+    else
+      count_pow2 (k + 1) (Int64.div rem 2L) in
+  count_pow2 0 n
 
 let fold_binop op e1 e2 typ : expr =
   let mk d = mkOExpr d typ in
@@ -276,6 +281,7 @@ and opt_stmt env (s: Tast.expr) : Oast.expr * env =
   | TEprint exprs ->
       (liftTExpr s (OEprint (List.map (opt_expr env) exprs)), env)
 
+  (* check for updated variable *)
   | TEincdec (e1, op) ->
       let env' = match e1.expr_desc with
         | TEident v -> kill env v
@@ -290,12 +296,13 @@ and opt_stmt env (s: Tast.expr) : Oast.expr * env =
   | _ ->
       (opt_expr env s, env)
 
-and opt_block env : Tast.expr list -> Oast.expr list * env = function
+and opt_block env (stmts: Tast.expr list) : Oast.expr list * env =
+  match stmts with
   | [] -> ([], env)
-  | s :: tl ->
-      let (s', env')   = opt_stmt env s in
-      let (tl', env'') = opt_block env' tl in
-      (s' :: tl', env'')
+  | stmt :: rest ->
+      let (stmt', env') = opt_stmt env stmt in
+      let (rest', env_final) = opt_block env' rest in
+      (stmt' :: rest', env_final)
 
 and assigned_vars (e: Tast.expr) : var list =
   match e.expr_desc with

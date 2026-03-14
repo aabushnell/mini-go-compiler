@@ -38,9 +38,9 @@ let generate_data () =
 (* NOTE: frame management *)
 
 type frame = {
-  mutable stack_offset: int;  (* next local offset, negative from %rbp *)
-  locals: (int, int) Hashtbl.t;  (* v_id -> offset from %rbp *)
-  params: (int, int) Hashtbl.t; (* v_id -> offset from %rbp (positive) *)
+  mutable stack_offset: int;     (* next local offset from %rbp *)
+  locals: (int, int) Hashtbl.t;  (* maps v_id -> offset from %rbp (negative) *)
+  params: (int, int) Hashtbl.t;  (* maps v_id -> offset from %rbp (positive) *)
 }
 
 let new_frame () = {
@@ -82,6 +82,28 @@ let rec gen_expr frame e = match e.expr_desc with
       andq (imm64 mask) (reg rcx) ++
       addq (reg rcx) (reg rax) ++
       sarq (imm k_int) (reg rax)
+  | OEbinop (Band, expr1, expr2) ->
+      let l_false = new_label () in
+      let l_done = new_label () in
+      gen_expr frame expr1 ++
+      testq (reg rax) (reg rax) ++
+      je l_false ++
+      gen_expr frame expr2 ++
+      jmp l_done ++
+      label l_false ++
+      movq (imm 0) (reg rax) ++
+      label l_done
+  | OEbinop (Bor, expr1, expr2) ->
+      let l_true = new_label () in
+      let l_done = new_label () in
+      gen_expr frame expr1 ++
+      testq (reg rax) (reg rax) ++
+      jne l_true ++
+      gen_expr frame expr2 ++
+      jmp l_done ++
+      label l_true ++
+      movq (imm 1) (reg rax) ++
+      label l_done
   | OEbinop (op, expr1, expr2) ->
       gen_expr frame expr1 ++
       pushq (reg rax) ++
@@ -282,7 +304,7 @@ and gen_print frame exprs =
         code
     in
     (code, is_string)
-  ) (nop, true) exprs  (* start with true *)
+  ) (nop, true) exprs  (* start with prev_is_string true *)
   in
   code
 
