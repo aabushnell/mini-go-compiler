@@ -45,8 +45,8 @@ type frame = {
 
 let new_frame () = {
   stack_offset = -8;
-  locals = Hashtbl.create 16;
-  params = Hashtbl.create 16;
+  locals = Hashtbl.create 128;
+  params = Hashtbl.create 128;
 }
 
 (* NOTE: expression generation *)
@@ -125,9 +125,7 @@ let rec gen_expr frame e = match e.expr_desc with
         | Bgt -> cmpq (reg rcx) (reg rax) ++ setg (reg al) ++ movzbq (reg al) (rax)
         | Bge -> cmpq (reg rcx) (reg rax) ++ setge (reg al) ++ movzbq (reg al) (rax)
 
-        | Band -> andq (reg rcx) (reg rax)
-        | Bor  -> orq (reg rcx) (reg rax)
-        | Bshl | Bshr ->
+        | Band | Bor | Bshl | Bshr ->
             (* should be unreachable *)
             assert false
       )
@@ -417,7 +415,7 @@ let file ?debug:(b=false) (dl: Oast.ofile): X86_64.program =
   in
 
   let go_main = match find_main dl with
-    | Some (ODfunction (f, _)) -> 
+    | Some (ODfunction (f, _)) ->
         if f.fn_name = "main" then "main_go" else f.fn_name
     | _ -> "main_missing"
   in
@@ -429,12 +427,9 @@ let file ?debug:(b=false) (dl: Oast.ofile): X86_64.program =
       call "exit" ++
       ret ++
       text_code ++
-      inline "
-      # TODO some auxiliary assembly functions, if needed
-      "
-  ++ aligned_call_wrapper ~f:"malloc" ~newf:"malloc_"
-  ++ aligned_call_wrapper ~f:"calloc" ~newf:"calloc_"
-  ++ aligned_call_wrapper ~f:"printf" ~newf:"printf_"
+      aligned_call_wrapper ~f:"malloc" ~newf:"malloc_" ++
+      aligned_call_wrapper ~f:"calloc" ~newf:"calloc_" ++
+      aligned_call_wrapper ~f:"printf" ~newf:"printf_"
 ;
     data =
       generate_data ()

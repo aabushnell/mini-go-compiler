@@ -135,11 +135,18 @@ module ExprTypecheck = struct
       errorm ~loc "new expects exactly 1 argument, got %d"
         (List.length pexpr_list);
     match (List.hd pexpr_list).pexpr_desc with
-    | PEident type_ident -> (
-        match Hashtbl.find_opt ctx.structs type_ident.id with
-        | Some s ->
-            { expr_desc = TEnew (Tstruct s); expr_typ = Tptr (Tstruct s) }
-        | None -> errorm ~loc:type_ident.loc "undefined type: %s" type_ident.id)
+    | PEident type_ident ->
+        let t = match type_ident.id with
+        | "int"    -> Tint
+        | "bool"   -> Tbool
+        | "string" -> Tstring
+        | s ->
+            begin match Hashtbl.find_opt ctx.structs s with
+            | Some st -> Tstruct st
+            | None    -> errorm ~loc:type_ident.loc "undefined type: %s" type_ident.id
+            end
+        in
+        { expr_desc = TEnew t; expr_typ = Tptr t }
     | _ -> errorm ~loc "new expects a type name as argument"
 
   let fmt_print typecheck_rec pexpr_list fmt_print_used =
