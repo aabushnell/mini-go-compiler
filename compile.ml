@@ -22,9 +22,9 @@ let string_literals = ref ([] : (string * label) list)
 let get_string_label s =
   try List.assoc s !string_literals
   with Not_found ->
-    let lbl = new_label () in
-    string_literals := (s, lbl) :: !string_literals;
-    lbl
+    let label = new_label () in
+    string_literals := (s, label) :: !string_literals;
+    label
 
 let get_empty_string_label =
   let lbl = get_string_label "" in
