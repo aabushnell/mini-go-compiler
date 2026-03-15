@@ -59,9 +59,8 @@ func main() {
 
 	fmt.Print("rotateRuntime(1, 2, 3):\n")
 	rotateRuntime(1, 2, 3)
-	// copy prop OFF:  2         copy prop ON:  2
-	//                 3                        3
-	//                 3                        3
-	// expected: a=2, b=3, c=2
+	// copy prop OFF:  2         copy prop ON:  3
+	//                 3                        2
+	//                 1                        2
 }
 
