@@ -33,8 +33,8 @@ let file ~debug:b ((imp, dl) : Ast.pfile) : Tast.tfile =
   Validation.check_no_duplicate_structs list_of_structs;
 
   (* Build environments *)
-  let struct_env = EnvBuilder.build_struct_env list_of_structs ~debug:!debug in
   Validation.check_struct_cycles list_of_structs;
+  let struct_env = EnvBuilder.build_struct_env list_of_structs ~debug:!debug in
 
   let func_env = EnvBuilder.build_func_env struct_env list_of_functions imp in
 
